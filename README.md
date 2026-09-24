@@ -65,7 +65,7 @@ New sign-ups use a 6-digit email code. Locally the email lands in Mailpit at htt
 | --- | --- |
 | `npm run dev` / `build` / `start` | Next.js |
 | `npm run seed` | Start local Supabase and reset it with migrations + `supabase/seed.sql` |
-| `npm run fixtures` | Regenerate `supabase/seed.sql` (deterministic) |
+| `npm run fixtures` | Regenerate `supabase/seed.sql` and `supabase/seed-staging.sql` (deterministic) |
 | `npm test` | Vitest unit tests |
 | `npx supabase test db` | pgTAP database tests (run on a fresh seed) |
 | `npm run test:e2e` | Playwright on Pixel 7 + iPhone 15 (reseed first: tests change data) |
@@ -75,9 +75,19 @@ New sign-ups use a 6-digit email code. Locally the email lands in Mailpit at htt
 
 ## Deploy (Vercel Pro + Supabase)
 
-1. **Supabase project** (staging and prod): `npx supabase link --project-ref <ref>` then `npx supabase db push`. Load reference data (ZIPs, markets, `app_config`) from the top of `supabase/seed.sql`. **Never load the full seed into a hosted project**: it creates demo accounts with a published password, including an admin.
-2. **Auth**: enable the Email provider. In *Auth → Email Templates → Magic Link*, use `supabase/templates/otp_code.html` so emails carry the 6-digit `{{ .Token }}` (magic links open Safari from an installed iPhone app). Configure custom SMTP (Resend) because the built-in sender is heavily rate-limited. Add your site URL and `https://<domain>/auth/callback` to redirect URLs.
-3. **Vercel**: import the repo, set the env vars from `.env.example` (never set `NEXT_PUBLIC_DEMO_LOGIN` in production), set `CRON_SECRET`. `vercel.json` schedules the jobs (ingest and enrich every 10 min, dispatch and lead billing every 5 min, maintenance hourly, stats, insights and dealer feeds daily). Each branch gets a preview URL.
+1. **Supabase project** (staging and prod): `npx supabase link --project-ref <ref>` then `npx supabase db push`.
+   - Staging or demo project: load `supabase/seed-staging.sql` once with `psql "$SUPABASE_DB_URL" -1 -v ON_ERROR_STOP=1 -f supabase/seed-staging.sql`. It holds the reference data plus the 300 fictional cars and dealers, with no accounts.
+   - Production: load only the reference data at the top of that file (ZIPs, markets, `app_config`).
+   - **Never load `supabase/seed.sql` into a hosted project**: it creates demo accounts with a published password, including an admin.
+   - Before launch, remove the fictional inventory:
+     ```sql
+     delete from public.listings where source = 'fixture' or source_id like 'mc-dup-%';
+     delete from public.dealerships where website like 'https://example.com/dealers/%';
+     delete from public.inspection_shops where is_demo;
+     delete from public.ingest_runs where source = 'fixture';
+     ```
+2. **Auth**: enable the Email provider. The sign-in screen asks for the code from the email, so in *Auth → Email Templates* set both **Magic Link** and **Confirm signup** to `supabase/templates/otp_code.html` (subject "Your CarSwipe sign-in code"). Emails then carry the `{{ .Token }}` code instead of a link, because links open Safari from an installed iPhone app. The built-in sender only delivers to members of your Supabase organization and is heavily rate-limited, so configure custom SMTP (Resend) before inviting testers. Set the Site URL to your domain and add `https://<domain>/**` to the redirect URLs.
+3. **Vercel**: import the repo and set the env vars from `.env.example`. Never set `NEXT_PUBLIC_DEMO_LOGIN` in production. Set `CRON_SECRET`. `ADMIN_BOOTSTRAP_EMAILS` promotes the listed emails to admin on their first sign-in (needs `SUPABASE_SECRET_KEY`). `vercel.json` schedules the jobs (ingest and enrich every 10 min, dispatch and lead billing every 5 min, maintenance hourly, stats, insights and dealer feeds daily). Each branch gets a preview URL.
 4. **Stripe** (Phase 2): create the Billing Meter (`matched_lead`), a metered price on it, the insights and promotion prices, and a webhook to `https://<domain>/api/webhooks/stripe`. Set the `STRIPE_*` vars. MVP dealers invoiced by hand get `billing_exempt = true`.
 5. **Storage**: migrations create the `listing-photos` (public), `vault` and `trade-photos` (private) buckets with per-user folder policies.
 

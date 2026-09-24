@@ -3,8 +3,7 @@
 --
 -- WARNING: this file creates demo accounts with a published password, one of
 -- them an admin. Load it only into a local stack (npm run seed), never into a
--- hosted Supabase project. For hosted projects, copy just the reference data
--- (zip_codes, markets, app_config) from the top of this file.
+-- hosted Supabase project. For hosted projects use supabase/seed-staging.sql.
 
 insert into public.zip_codes (zip, city, state, lat, lng) values
   ('37201', 'Nashville', 'TN', 36.1656, -86.7784),
