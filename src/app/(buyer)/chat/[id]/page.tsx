@@ -25,6 +25,7 @@ export default async function BuyerChatPage({ params }: PageProps<"/chat/[id]">)
       backHref="/offers"
       phoneShared={conv.phoneShared}
       dealershipId={conv.dealershipId}
+      sellerUserId={conv.sellerUserId}
     />
   );
 }

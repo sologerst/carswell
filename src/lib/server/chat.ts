@@ -7,7 +7,7 @@ import type { ServerSupabase } from "../supabase/server";
 export async function loadConversation(supabase: ServerSupabase, id: string) {
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id, interest_id, buyer_id, dealership_id, buyer_phone_shared_at, dealership:dealerships(name), interest:interests(listing:listings(year, make, model, trim_level, listing_photos(url, position)), dossier)")
+    .select("id, interest_id, buyer_id, dealership_id, seller_user_id, buyer_phone_shared_at, dealership:dealerships(name), interest:interests(listing:listings(year, make, model, trim_level, listing_photos(url, position)), dossier)")
     .eq("id", id)
     .maybeSingle();
   if (!conv) return null;
@@ -24,7 +24,8 @@ export async function loadConversation(supabase: ServerSupabase, id: string) {
     interestId: conv.interest_id,
     buyerId: conv.buyer_id,
     dealershipId: conv.dealership_id,
-    dealerName: (conv.dealership as unknown as { name: string } | null)?.name ?? "Dealer",
+    sellerUserId: conv.seller_user_id,
+    dealerName: (conv.dealership as unknown as { name: string } | null)?.name ?? (conv.seller_user_id ? "Private seller" : "Dealer"),
     buyerName: interest.dossier?.first_name ?? "Buyer",
     phoneShared: Boolean(conv.buyer_phone_shared_at),
     title: `${l.year} ${l.make} ${l.model}${l.trim_level ? ` ${l.trim_level}` : ""}`,

@@ -21,6 +21,9 @@
   --color-deal-good: #22c55e;
   --color-deal-fair: #f5a524;
   --color-deal-bad: #f87171;
+  /* Chart marks: single-series magnitude uses the accent (validated against
+     navy-900 with the dataviz palette checker); context ticks use muted. */
+  --color-chart-1: #6d5efc;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -84,4 +87,10 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Printable pages (bill of sale): hide app chrome. */
+@media print {
+  nav, .print\:hidden { display: none !important; }
+  html, body { background: #fff !important; color: #0b1530 !important; }
 }

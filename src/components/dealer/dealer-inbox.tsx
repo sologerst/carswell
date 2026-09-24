@@ -26,7 +26,14 @@ function timer(sla: string | null): { text: string; urgent: boolean } | null {
   return { text: h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h left` : `${h}h ${m}m left`, urgent: h < 6 };
 }
 
-export function DealerInbox({ leads, dealerName }: { leads: Lead[]; dealerName: string }) {
+export function DealerInbox({ leads, dealerName, basePath = "/dealer/leads", intro, heading = "Leads" }: {
+  leads: Lead[];
+  dealerName: string;
+  /** Lead detail links; the private-seller inbox reuses this view. */
+  basePath?: string;
+  intro?: string;
+  heading?: string;
+}) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("new");
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t.key, leads.filter((l) => (t.statuses as readonly string[]).includes(l.status)).length])), [leads]);
   const shown = leads.filter((l) => (TABS.find((t) => t.key === tab)!.statuses as readonly string[]).includes(l.status));
@@ -35,8 +42,8 @@ export function DealerInbox({ leads, dealerName }: { leads: Lead[]; dealerName: 
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted">{dealerName} · buyers who liked your cars. Answer with an out-the-door offer; contact details unlock when they pick yours.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{heading}</h1>
+          <p className="text-sm text-muted">{dealerName} · {intro ?? "buyers who liked your cars. Answer with an out-the-door offer; contact details unlock when they pick yours."}</p>
         </div>
       </div>
       <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto rounded-full bg-navy-900 p-1 scrollbar-none sm:inline-flex">
@@ -58,14 +65,14 @@ export function DealerInbox({ leads, dealerName }: { leads: Lead[]; dealerName: 
             const fit = FIT[l.budgetFit];
             return (
               <li key={l.interest_id}>
-                <Link href={`/dealer/leads/${l.interest_id}`} className="flex gap-4 rounded-3xl border border-line bg-navy-900 p-4 transition hover:border-navy-500">
+                <Link href={`${basePath}/${l.interest_id}`} className="flex gap-4 rounded-3xl border border-line bg-navy-900 p-4 transition hover:border-navy-500">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {l.listing_photo && <img src={l.listing_photo} alt="" className="hidden h-24 w-32 shrink-0 rounded-2xl object-cover sm:block" />}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-lg font-bold">{l.dossier.first_name ?? "Buyer"}</p>
                       {l.kind === "superlike" && <Pill tone="drive"><CalendarClock className="size-3" /> Test drive</Pill>}
-                      <Pill tone={fit.tone}>{fit.text}</Pill>
+                      {l.budgetFit !== "unknown" && <Pill tone={fit.tone}>{fit.text}</Pill>}
                       {t && <span className={cn("ml-auto inline-flex items-center gap-1 text-xs font-bold", t.urgent ? "text-deal-bad" : "text-muted")}><Clock className="size-3.5" /> {t.text}</span>}
                     </div>
                     <p className="truncate text-sm">{l.listing_title} · {usd(l.listing_price)}</p>

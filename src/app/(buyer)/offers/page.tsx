@@ -24,7 +24,7 @@ export default async function OffersPage() {
     loadPrefs(supabase, profile.id),
     supabase
       .from("interests")
-      .select("id, status, kind, created_at, sla_expires_at, buyer_notes, listing:listings(id, year, make, model, trim_level, price, condition, listing_photos(url, position)), dealership:dealerships(name, lead_channel, rating, response_time_minutes), offers(*), conversations(id)")
+      .select("id, status, kind, created_at, sla_expires_at, buyer_notes, listing:listings(id, year, make, model, trim_level, price, condition, listing_photos(url, position)), seller_user_id, dealership:dealerships(name, lead_channel, rating, response_time_minutes), offers(*), conversations(id), counteroffers(id, offer_id, amount_otd, status, created_at)")
       .eq("user_id", profile.id)
       .in("status", ["sent", "offered", "matched", "purchased", "declined", "expired"])
       .order("updated_at", { ascending: false }),
@@ -38,8 +38,11 @@ export default async function OffersPage() {
     const offers = ((i.offers ?? []) as unknown as {
       id: string; status: string; otd_total: number; vehicle_price: number; doc_fee: number; dealer_fees: number; tax: number;
       title_fees: number; trade_credit: number; notes: string | null; expires_at: string; created_at: string; source: string; apr: number | null; term_months: number | null;
+      lender: string | null; down_payment: number | null; monthly_estimate: number | null;
     }[]).map((o) => ({
       ...o,
+      apr: o.apr === null ? null : Number(o.apr), down_payment: o.down_payment === null ? null : Number(o.down_payment),
+      monthly_estimate: o.monthly_estimate === null ? null : Number(o.monthly_estimate),
       otd_total: Number(o.otd_total), vehicle_price: Number(o.vehicle_price), doc_fee: Number(o.doc_fee), dealer_fees: Number(o.dealer_fees),
       tax: Number(o.tax), title_fees: Number(o.title_fees), trade_credit: Number(o.trade_credit),
       monthly: budget.mode === "cash" ? null : Math.round(monthlyPayment(Math.max(0, Number(o.otd_total) - budget.down), apr, budget.termMonths)),
@@ -53,7 +56,9 @@ export default async function OffersPage() {
       conversationId: firstId(i.conversations),
       listing: { id: l.id, title: `${l.year} ${l.make} ${l.model}${l.trim_level ? ` ${l.trim_level}` : ""}`, price: Number(l.price), photo: [...(l.listing_photos ?? [])].sort((a, b) => a.position - b.position)[0]?.url ?? null },
       dealer: d ? { name: d.name, leadChannel: d.lead_channel, rating: d.rating, responseMinutes: d.response_time_minutes } : null,
+      privateSale: Boolean(i.seller_user_id),
       offers,
+      counters: ((i.counteroffers ?? []) as { id: string; offer_id: string; amount_otd: number; status: string; created_at: string }[]).map((c) => ({ ...c, amount_otd: Number(c.amount_otd) })),
     };
   });
 

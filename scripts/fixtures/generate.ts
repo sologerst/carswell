@@ -1,5 +1,6 @@
 // Generates supabase/seed.sql: 300 synthetic Nashville cars, demo dealers,
-// app_config defaults and demo accounts. Deterministic (seeded PRNG), so the
+// app_config defaults, demo accounts (buyer, dealer, admin, private seller)
+// and a synthetic buyer panel for demand insights. Deterministic (seeded PRNG), so the
 // output only changes when this script or its inputs change.
 //
 //   npm run fixtures
@@ -383,7 +384,9 @@ const DEMO_USERS = [
   { id: "00000000-0000-4000-8000-00000000a001", email: "admin@carswipe.dev", first: "Avery", admin: true, zip: "37203" },
   { id: "00000000-0000-4000-8000-00000000d001", email: "dealer@carswipe.dev", first: "Dana", admin: false, zip: "37210" },
   { id: "00000000-0000-4000-8000-00000000b001", email: "buyer@carswipe.dev", first: "Jordan", admin: false, zip: "37206" },
+  { id: "00000000-0000-4000-8000-00000000e001", email: "seller@carswipe.dev", first: "Sam", admin: false, zip: "37212" },
 ];
+const SELLER_ID = DEMO_USERS[3].id;
 const BUYER_ID = DEMO_USERS[2].id;
 
 function demoUsersSql(): string {
@@ -400,7 +403,7 @@ ${users};
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at) values
 ${identities};
 
-${DEMO_USERS.map((u) => `update public.profiles set first_name = '${u.first}', zip = '${u.zip}', is_admin = ${u.admin}${u.id === BUYER_ID ? ", onboarding_completed_at = now() - interval '2 days', onboarding_method = 'chat', swipe_count = 3, phone = '615-555-0142', ai_summary = 'A compact or midsize SUV under $575/mo, AWD for the lake roads, room for two car seats and the dog.'" : ""} where id = '${u.id}';`).join("\n")}
+${DEMO_USERS.map((u) => `update public.profiles set first_name = '${u.first}', zip = '${u.zip}', is_admin = ${u.admin}${u.id === BUYER_ID ? ", onboarding_completed_at = now() - interval '2 days', onboarding_method = 'chat', swipe_count = 3, phone = '615-555-0142', ai_summary = 'A compact or midsize SUV under $575/mo, AWD for the lake roads, room for two car seats and the dog.', budget_max_price = 29000" : ""}${u.id === SELLER_ID ? ", phone = '+16155550187', phone_verified_at = now() - interval '20 days'" : ""} where id = '${u.id}';`).join("\n")}
 
 insert into public.dealership_members (dealership_id, user_id, role) values ('${demoDealerId}', '${DEMO_USERS[1].id}', 'owner');
 `;
@@ -488,6 +491,157 @@ function demoBuyerSql(): string {
   return out;
 }
 
+// Phase 2/3 fixtures ------------------------------------------------------------
+// Uses its own PRNG so the 300 cars above stay identical.
+const rand2 = mulberry32(20260925);
+const pick2 = <T,>(items: T[]): T => items[Math.floor(rand2() * items.length)];
+const int2 = (min: number, max: number) => Math.floor(min + (max - min + 1) * rand2());
+
+const INSPECTION_SHOPS = [
+  { name: "Music Row Auto Inspection (Demo)", address: "1400 Music Row", city: "Nashville", zip: "37203", lat: 36.1487, lng: -86.7924, price: 149, rating: 4.8, mobile: false },
+  { name: "East Nashville Import Service (Demo)", address: "900 Gallatin Ave", city: "Nashville", zip: "37206", lat: 36.1839, lng: -86.7473, price: 129, rating: 4.7, mobile: false },
+  { name: "Franklin Pre-Purchase Pros (Demo)", address: "400 Mallory Ln", city: "Franklin", zip: "37067", lat: 35.9433, lng: -86.8231, price: 159, rating: 4.9, mobile: false },
+  { name: "Murfreesboro Car Check (Demo)", address: "2100 Old Fort Pkwy", city: "Murfreesboro", zip: "37129", lat: 35.8487, lng: -86.4270, price: 119, rating: 4.6, mobile: false },
+  { name: "Mobile Mechanic Middle TN (Demo)", address: null, city: "Nashville", zip: "37211", lat: 36.0726, lng: -86.7244, price: 175, rating: 4.8, mobile: true },
+  { name: "Hendersonville Auto Techs (Demo)", address: "200 E Main St", city: "Hendersonville", zip: "37075", lat: 36.3048, lng: -86.6200, price: 139, rating: 4.5, mobile: false },
+];
+
+const PRIVATE_LISTINGS = [
+  { make: "Honda", model: "CR-V", trim: "EX", year: 2019, miles: 58200, price: 21400, expected: 23100, body: "compact_suv", color: ["Obsidian Blue Pearl", "blue", "1f3b73"], status: "approved", wmi: "2HK", vds: "RW2H5" },
+  { make: "Toyota", model: "Camry", trim: "SE", year: 2017, miles: 81400, price: 15900, expected: 16400, body: "sedan", color: ["Celestial Silver", "silver", "b8bcc2"], status: "approved", wmi: "4T1", vds: "B11HK" },
+  { make: "Ford", model: "F-150", trim: "XLT", year: 2018, miles: 64000, price: 17500, expected: 29800, body: "pickup", color: ["Oxford White", "white", "eeeeea"], status: "pending", wmi: "1FT", vds: "EW1EP" },
+];
+
+function phase23Sql(): string {
+  let out = "-- Phase 2/3 demo data: a private seller, inspection shops, a promoted car,\n-- billing rows and a synthetic buyer panel so demand insights have data.\n";
+  out += insert("public.inspection_shops", INSPECTION_SHOPS.map((sh, i) => ({
+    id: uuidFrom(i + 1, "5b"), name: sh.name, address: sh.address, city: sh.city, zip: sh.zip, lat: sh.lat, lng: sh.lng,
+    phone: `615-555-${String(300 + i).padStart(4, "0")}`, email: `inspections+${i + 1}@example.com`, price_usd: sh.price, rating: sh.rating, mobile: sh.mobile, is_demo: true,
+  })));
+
+  // Private seller (Sam): two live cars and one held for review.
+  const sellerZip = ZIPS.find((z) => z.zip === "37212") ?? ZIPS[0];
+  const privateRows = PRIVATE_LISTINGS.map((p, i) => {
+    const vin = withCheckDigit(`${p.wmi}${p.vds}0${modelYearCode(p.year)}L${String(400100 + i * 37)}`);
+    const ratio = p.price / p.expected;
+    return {
+      id: uuidFrom(i + 1, "cf"), vin, source: "private", seller_type: "private", private_seller_id: SELLER_ID, market_id: "nashville",
+      year: p.year, make: p.make, model: p.model, trim_level: p.trim, body_style: p.body, condition: "used", price: p.price, miles: p.miles,
+      exterior_color: p.color[0], exterior_color_family: p.color[1], interior_color: "Black", fuel_type: "gas",
+      drivetrain: p.body === "pickup" ? "4wd" : p.body === "compact_suv" ? "awd" : "fwd", transmission: "automatic",
+      seats: p.body === "pickup" ? 6 : 5, third_row: false, features: p.body === "sedan" ? ["backup_camera", "carplay"] : ["backup_camera", "carplay", "heated_seats"],
+      features_verified: false, title_status: "clean", accident_count: 0, owner_count: i === 1 ? 2 : 1, personal_use: true,
+      description: i === 2
+        ? "Great truck, must sell fast. I am out of state for work, so the truck is with a shipping company. Pay with eBay Motors protection and it ships to you."
+        : `${p.year} ${p.make} ${p.model} ${p.trim}, ${p.miles.toLocaleString("en-US")} miles. One owner, garage kept, all maintenance at the dealer. New tires last spring. Small scratch on the rear bumper (photo 3).`,
+      zip: sellerZip.zip, lat: Number((sellerZip.lat + 0.004 * (i + 1)).toFixed(5)), lng: Number((sellerZip.lng - 0.003 * (i + 1)).toFixed(5)),
+      expected_price: p.expected, deal_rating: ratio <= 0.9 ? "great" : ratio <= 0.97 ? "good" : ratio <= 1.03 ? "fair" : ratio <= 1.1 ? "high" : "overpriced",
+      quality_score: 0.7, photo_count: 4,
+      is_active: p.status === "approved", is_canonical: p.status === "approved", review_status: p.status,
+      risk_score: p.status === "pending" ? 0.45 : 0.1,
+      moderation: json(p.status === "pending"
+        ? { decision: "review", by: "auto", flags: [
+            { code: "price_too_low", severity: "high", detail: "The price is far below similar cars, a common bait pattern." },
+            { code: "risky_text", severity: "medium", detail: "Seller claims to be away; Offers shipping or third-party escrow" },
+          ] }
+        : { decision: "approve", by: "auto", flags: [] }),
+      published_at: p.status === "approved" ? raw(`now() - interval '${6 + i * 5} days'`) : null,
+      first_seen_at: raw(`now() - interval '${6 + i * 5} days'`),
+      last_seen_at: raw("now()"),
+    };
+  });
+  out += insert("public.listings", privateRows);
+  out += insert("public.listing_photos", privateRows.flatMap((r, i) => Array.from({ length: 4 }, (_, k) => ({
+    listing_id: r.id as string, url: `/fx/car/${PRIVATE_LISTINGS[i].body}/${PRIVATE_LISTINGS[i].color[2]}/${k}`, position: k,
+  }))));
+
+  // Synthetic buyer panel: budgets, body-style wants and 30 days of swipes.
+  const BODY_MIX: [string, number][] = [["compact_suv", 0.27], ["midsize_suv", 0.18], ["three_row_suv", 0.12], ["sedan", 0.14], ["pickup", 0.12], ["hatchback", 0.09], ["minivan", 0.05], ["wagon", 0.03]];
+  const pickBody = () => {
+    let r = rand2();
+    for (const [b, w] of BODY_MIX) { if ((r -= w) <= 0) return b; }
+    return "sedan";
+  };
+  const PANEL = 60;
+  const panel = Array.from({ length: PANEL }, (_, i) => {
+    // Every tenth panelist also wants a wagon, which the demo dealer doesn't stock.
+    const bodies = [...new Set([pickBody(), ...(rand2() < 0.4 ? [pickBody()] : []), ...(i % 10 === 0 ? ["wagon"] : [])])];
+    const budget = Math.round(Math.min(80000, Math.max(12000, 30000 + (rand2() + rand2() + rand2() - 1.5) * 20000)) / 500) * 500;
+    return { id: uuidFrom(i + 1, "9a"), email: `panel+${String(i + 1).padStart(2, "0")}@carswipe.dev`, zip: pick2(ZIPS).zip, bodies, budget };
+  });
+  out += `insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, recovery_token,
+  email_change_token_new, email_change) values
+${panel.map((p) => `  ('00000000-0000-0000-0000-000000000000', '${p.id}', 'authenticated', 'authenticated', '${p.email}', '', now(), '{"provider":"email","providers":["email"]}', '{}', now() - interval '40 days', now(), '', '', '', '')`).join(",\n")};
+`;
+  out += panel.map((p, i) => `update public.profiles set first_name = 'Panel ${i + 1}', zip = '${p.zip}', onboarding_completed_at = now() - interval '35 days', onboarding_method = 'form', budget_max_price = ${p.budget} where id = '${p.id}';`).join("\n") + "\n";
+  out += insert("public.buyer_preferences", panel.flatMap((p) => [
+    { user_id: p.id, key: "body_styles", value: json(p.bodies), tier: "must", source: "said" },
+    { user_id: p.id, key: "budget_mode", value: json("cash"), tier: "dealbreaker", source: "said" },
+    { user_id: p.id, key: "max_cash_price", value: json(p.budget), tier: "dealbreaker", source: "said" },
+  ]));
+
+  const all = listings.filter((g) => g.row.condition !== "new");
+  const swipes: Record<string, SqlValue>[] = [];
+  const stats = new Map<string, { likes: number; passes: number; views: number }>();
+  panel.forEach((p, pi) => {
+    const seen = new Set<string>();
+    const n = int2(35, 60);
+    for (let k = 0; k < n; k++) {
+      const pool = rand2() < 0.25 ? all.filter((g) => g.dealerIndex === 0) : rand2() < 0.75 ? all.filter((g) => p.bodies.includes(g.row.body_style as string)) : all;
+      const g = pool.length ? pick2(pool) : pick2(all);
+      const id = g.row.id as string;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const price = g.row.price as number;
+      const deal = g.row.deal_rating as string | null;
+      let pLike = 0.28 + ({ great: 0.22, good: 0.12, fair: 0, high: -0.1, overpriced: -0.16 } as Record<string, number>)[deal ?? "fair"];
+      if (price > p.budget) pLike = 0.04;
+      if (!p.bodies.includes(g.row.body_style as string)) pLike *= 0.4;
+      const action = rand2() < pLike ? (rand2() < 0.08 ? "superlike" : "like") : "pass";
+      const daysAgo = int2(0, 27);
+      swipes.push({
+        user_id: p.id, listing_id: id, action, client_id: uuidFrom(pi * 1000 + k + 1, "7c"),
+        swiped_at: raw(`now() - interval '${daysAgo} days' - interval '${int2(0, 600)} minutes'`),
+        received_at: raw(`now() - interval '${daysAgo} days' - interval '${int2(0, 600)} minutes'`),
+      });
+      const key = `${id}|${daysAgo}`;
+      const s0 = stats.get(key) ?? { likes: 0, passes: 0, views: 0 };
+      s0.views += 1 + (rand2() < 0.5 ? 1 : 0);
+      if (action === "pass") s0.passes++; else s0.likes++;
+      stats.set(key, s0);
+    }
+  });
+  out += insert("public.swipes", swipes);
+  out += `update public.profiles p set swipe_count = s.n from (select user_id, count(*) as n from public.swipes group by user_id) s where s.user_id = p.id and p.email like 'panel+%';\n`;
+  out += insert("public.listing_stats_daily", [...stats.entries()].map(([key, v]) => {
+    const [listingId, days] = key.split("|");
+    return { listing_id: listingId, day: raw(`current_date - ${days}`), impressions: v.views, detail_opens: Math.round(v.likes * 0.6), likes: v.likes, superlikes: 0, passes: v.passes };
+  }));
+
+  // A panel buyer liked Sam's CR-V: a lead waiting in the seller inbox.
+  const crv = privateRows[0];
+  const leadBuyer = panel[0];
+  out += insert("public.interests", [{
+    id: "00000000-0000-4000-8000-0000000e0101", user_id: leadBuyer.id, listing_id: crv.id as string, seller_user_id: SELLER_ID,
+    swipe_client_id: uuidFrom(99001, "7c"), kind: "like", status: "sent",
+    dossier: json({ first_name: "Riley", zip: leadBuyer.zip, preferences: { financing_status: "cash", timeline: "week" }, swipe_count: 42 }),
+    lead_summary: "Riley is a cash buyer shopping this week for a compact SUV. Reply with your price to open the conversation.",
+    sla_expires_at: raw("now() + interval '60 hours'"), created_at: raw("now() - interval '12 hours'"),
+  }]);
+  out += insert("public.lead_deliveries", [{ interest_id: "00000000-0000-4000-8000-0000000e0101", dealership_id: null, channel: "seller_inbox", status: "sent", sent_at: raw("now() - interval '12 hours'") }]);
+  out += insert("public.notifications", [{ user_id: SELLER_ID, kind: "new_lead", title: "A buyer likes your car", body: `${crv.year} ${crv.make} ${crv.model}`, url: "/sell/leads/00000000-0000-4000-8000-0000000e0101" }]);
+
+  // Billing: the demo dealer's matched lead, a dev-entitlement promotion, a feed row.
+  out += insert("public.lead_charges", [{ interest_id: "00000000-0000-4000-8000-0000000e0003", dealership_id: demoDealerId, amount_usd: DEFAULT_CONFIG.billing.matched_lead_price_usd, status: "pending", created_at: raw("now() - interval '6 hours'") }]);
+  const promoted = listings.filter((g) => g.dealerIndex === 0 && g.row.condition !== "new")[3];
+  out += `update public.listings set promoted_until = now() + interval '5 days' where id = '${promoted.row.id}';\n`;
+  out += insert("public.promotions", [{ listing_id: promoted.row.id as string, dealership_id: demoDealerId, days: 7, amount_usd: DEFAULT_CONFIG.billing.promotion_price_usd, status: "dev", starts_at: raw("now() - interval '2 days'"), ends_at: raw("now() + interval '5 days'"), created_by: DEMO_USERS[1].id }]);
+  out += insert("public.dealer_feeds", dealerIds.map((id) => ({ dealership_id: id })));
+  out += `select public.refresh_demand_insights(${DEFAULT_CONFIG.insights.k_anonymity});\n`;
+  return out;
+}
+
 // Assemble ----------------------------------------------------------------------
 function configSql(config: AppConfig): string {
   return insert("public.app_config", (Object.keys(config) as (keyof AppConfig)[]).map((key) => ({
@@ -533,6 +687,7 @@ function main() {
   }))));
   parts.push(demoUsersSql());
   parts.push(demoBuyerSql());
+  parts.push(phase23Sql());
   parts.push(`insert into public.ingest_runs (market_id, source, status, stats, finished_at)
 values ('nashville', 'fixture', 'succeeded', '{"listings": ${LISTING_COUNT}, "duplicates": ${duplicates.length}}', now());
 `);

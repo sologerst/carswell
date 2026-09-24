@@ -73,6 +73,7 @@ export const SwipeCard = forwardRef<SwipeCardHandle, {
         <Stamp className="right-5 rotate-[12deg] border-white text-white" style={{ opacity: passOpacity }}>PASS</Stamp>
         <Stamp className="left-1/2 top-1/3 -translate-x-1/2 border-drive text-drive" style={{ opacity: driveOpacity }}>TEST DRIVE</Stamp>
         {card.exploration && <span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-bold backdrop-blur">Something different</span>}
+        {l.is_promoted && <span className="absolute right-3 bottom-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold backdrop-blur">Promoted</span>}
       </div>
 
       <button type="button" onClick={onOpen} className="block w-full cursor-pointer px-5 pt-4 pb-5 text-left">
@@ -85,12 +86,12 @@ export const SwipeCard = forwardRef<SwipeCardHandle, {
         </div>
         <h2 className="mt-3 truncate text-lg font-bold">{listingTitle(l, true)}</h2>
         <p className="mt-0.5 text-sm text-muted">
-          {[miles(l.miles), distance(l.distance_mi), l.drivetrain ? DRIVE_LABEL[l.drivetrain] : null, l.seller_type === "private" ? "Private seller" : l.dealer_name].filter(Boolean).join(" · ")}
+          {[miles(l.miles), distance(l.distance_mi), l.drivetrain ? DRIVE_LABEL[l.drivetrain] : null, l.seller_type === "private" ? (l.source === "private" ? "Private seller · phone verified" : "Private seller") : l.dealer_name].filter(Boolean).join(" · ")}
         </p>
         {(card.reasons.length > 0 || card.badges.length > 0) && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {card.reasons.map((r) => <Pill key={r.key} tone="accent">{r.text}</Pill>)}
-            {card.badges.map((b) => <Pill key={b.text} tone="fair">{b.text}</Pill>)}
+            {card.badges.filter((b) => b.kind !== "promoted").map((b) => <Pill key={b.text} tone="fair">{b.text}</Pill>)}
           </div>
         )}
       </button>

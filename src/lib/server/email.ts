@@ -13,6 +13,8 @@ export interface OutboundEmail {
   html?: string;
   attachments?: { filename: string; content: string; contentType?: string }[];
   meta?: Record<string, unknown>;
+  /** Always write to dev_outbox, even when Resend is configured (dev SMS codes). */
+  devOnly?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface OutboundEmail {
  */
 export async function sendEmail(email: OutboundEmail): Promise<{ id: string; via: "resend" | "dev_outbox" }> {
   const from = email.from ?? env.emailFrom;
-  if (features.email) {
+  if (features.email && !email.devOnly) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.resendApiKey}`, "Content-Type": "application/json" },

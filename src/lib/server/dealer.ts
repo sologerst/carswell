@@ -76,3 +76,19 @@ export function describeTrade(p: Record<string, unknown> | undefined): string {
 }
 
 export const TIMELINE_TEXT: Record<string, string> = { week: "This week", month: "This month", quarter: "1-3 months", browsing: "Browsing" };
+
+/** Private seller inbox: same shape as dealer leads, without budget details. */
+export async function loadSellerLeads(supabase: ServerSupabase): Promise<Lead[]> {
+  const { data, error } = await supabase.rpc("seller_leads");
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    ...row,
+    listing_price: Number(row.listing_price),
+    best_offer_otd: row.best_offer_otd === null ? null : Number(row.best_offer_otd),
+    test_drive_windows: row.test_drive_windows as Lead["test_drive_windows"],
+    buyer_notes: (row.buyer_notes as Lead["buyer_notes"]) ?? [],
+    dossier: (row.dossier ?? {}) as Lead["dossier"],
+    budgetFit: "unknown",
+    maxPrice: null,
+  }) as Lead);
+}

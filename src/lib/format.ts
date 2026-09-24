@@ -37,3 +37,13 @@ export function relativeTime(iso: string | Date, now: Date = new Date()): string
 export function titleCase(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 }
+
+/** Milliseconds since an instant (request-time helper for server components). */
+export function msAgo(iso: string | Date): number {
+  return Date.now() - new Date(iso).getTime();
+}
+
+/** Start of a window N days back, as an ISO string. */
+export function daysBackIso(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}

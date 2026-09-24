@@ -1,10 +1,10 @@
 import "server-only";
 
 import { env, features } from "../env";
-import { pickCanonical, type DedupeRow } from "../inventory/dedupe";
 import { colorFamily, normalizeBody, normalizeDrive, normalizeFuel } from "../inventory/normalize";
 import type { AdminSupabase } from "../supabase/admin";
 import { isValidVin } from "../vin";
+import { recomputeCanonicalForVins } from "./canonical";
 
 // MarketCheck sweep (Phase 4). Field names below follow MarketCheck's
 // public v2 search API and are marked [VERIFY with MarketCheck] in the spec;
@@ -121,13 +121,14 @@ export async function runIngest(admin: AdminSupabase) {
   return results;
 }
 
-/** Re-pick one canonical card per VIN within a market. */
+/** Re-pick one canonical card per VIN within a market (paged, VIN-ordered). */
 async function recomputeCanonical(admin: AdminSupabase, marketId: string) {
-  const { data } = await admin.from("listings").select("id, vin, source, seller_type, last_seen_at, is_canonical").eq("market_id", marketId).eq("is_active", true);
-  const rows = (data ?? []) as (DedupeRow & { is_canonical: boolean })[];
-  const canonical = pickCanonical(rows);
-  const winners = new Set(canonical.values());
-  // Demote first so the partial unique index never sees two canonical rows.
-  for (const r of rows) if (r.is_canonical && !winners.has(r.id)) await admin.from("listings").update({ is_canonical: false }).eq("id", r.id);
-  for (const r of rows) if (!r.is_canonical && winners.has(r.id)) await admin.from("listings").update({ is_canonical: true }).eq("id", r.id);
+  const vins = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin.from("listings").select("vin").eq("market_id", marketId).eq("is_active", true)
+      .order("vin").range(from, from + 999);
+    for (const r of data ?? []) vins.add(r.vin);
+    if (!data || data.length < 1000) break;
+  }
+  await recomputeCanonicalForVins(admin, [...vins]);
 }

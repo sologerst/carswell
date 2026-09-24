@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import { Button } from "@/components/ui/button";
+import { PhoneVerify } from "@/components/phone/phone-verify";
 import { Card, Input, Label, SectionTitle } from "@/components/ui/primitives";
 import { requireDealer } from "@/lib/server/session";
 import { createClient } from "@/lib/supabase/server";
@@ -40,8 +41,16 @@ export default async function DealerSettings() {
   ]);
   if (!d) return null;
   return (
-    <form action={save} className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">{d.name}</h1>
+    <div className="max-w-2xl space-y-6">
+    <h1 className="text-2xl font-bold tracking-tight">{d.name}</h1>
+    <Card className="space-y-3 p-5">
+      <SectionTitle>Phone verification</SectionTitle>
+      <p className="text-sm text-muted">Verified dealerships show a check to buyers. {d.verified_at ? "CarSwipe has verified your dealership." : "CarSwipe verifies new dealerships by hand; a verified phone speeds that up."}</p>
+      {membership.role === "owner"
+        ? <PhoneVerify purpose="dealership" dealershipId={d.id} initialPhone={d.phone} verifiedPhone={d.phone_verified_at ? d.phone : null} />
+        : <p className="text-sm text-muted">{d.phone_verified_at ? `Verified: ${d.phone}` : "Ask an owner to verify the dealership phone."}</p>}
+    </Card>
+    <form action={save} className="space-y-6">
       <Card className="space-y-4 p-5">
         <SectionTitle>Contact and fees</SectionTitle>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -61,5 +70,6 @@ export default async function DealerSettings() {
       </Card>
       <Button type="submit">Save settings</Button>
     </form>
+    </div>
   );
 }

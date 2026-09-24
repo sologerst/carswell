@@ -62,6 +62,26 @@ export interface AppConfig {
   deck: { empty_threshold: number; candidates: number; explore_candidates: number };
   purchase_prompts: { days_after_match: number[] };
   launch_market: { id: string; zip: string };
+  billing: {
+    matched_lead_price_usd: number;
+    promotion_price_usd: number;
+    promotion_days: number;
+    insights_monthly_usd: number;
+  };
+  promotions: { max_share: number; boost: number };
+  private_sales: {
+    max_listings_per_year: number;
+    min_photos: number;
+    max_photos: number;
+    listing_days: number;
+  };
+  moderation: {
+    review_score: number;
+    block_score: number;
+    price_too_low_ratio: number;
+    phash_max_distance: number;
+  };
+  insights: { k_anonymity: number };
 }
 
 export type CreditTier = "excellent" | "good" | "fair" | "rebuilding";
@@ -129,6 +149,16 @@ export const DEFAULT_CONFIG: AppConfig = {
   deck: { empty_threshold: 6, candidates: 300, explore_candidates: 100 },
   purchase_prompts: { days_after_match: [14, 30] },
   launch_market: { id: "nashville", zip: "37203" },
+  // [SET] Display prices. The Stripe prices (STRIPE_PRICE_*) are what invoices
+  // charge, so keep them in sync. Fees are per matched lead, never per sale.
+  billing: { matched_lead_price_usd: 40, promotion_price_usd: 49, promotion_days: 7, insights_monthly_usd: 199 },
+  // Promoted cards: at most this share of a batch, with a small capped boost.
+  promotions: { max_share: 0.1, boost: 0.06 },
+  // [VERIFY TN] Selling 5+ vehicles in 12 months generally requires a dealer
+  // license in Tennessee, so private sellers are capped below that.
+  private_sales: { max_listings_per_year: 4, min_photos: 3, max_photos: 20, listing_days: 60 },
+  moderation: { review_score: 0.35, block_score: 0.7, price_too_low_ratio: 0.65, phash_max_distance: 6 },
+  insights: { k_anonymity: 5 },
 };
 
 export const CONFIG_DESCRIPTIONS: Record<keyof AppConfig, string> = {
@@ -143,6 +173,11 @@ export const CONFIG_DESCRIPTIONS: Record<keyof AppConfig, string> = {
   deck: "Deck sizes and the empty-deck rescue threshold.",
   purchase_prompts: "Days after a match to ask \"Did you buy it?\".",
   launch_market: "Launch market and its center ZIP.",
+  billing: "Displayed prices for matched leads, promotions and insights. [SET] Keep in sync with the Stripe prices.",
+  promotions: "Promoted listings: max share of a deck batch and the ranking boost.",
+  private_sales: "Private sellers: yearly listing cap [VERIFY TN dealer-license threshold], photo limits, listing length.",
+  moderation: "Listing risk thresholds: review and block scores, too-good price ratio, photo match distance.",
+  insights: "Demand insights: minimum distinct buyers per reported number (k-anonymity).",
 };
 
 /** Merge database rows over the defaults, key by key (shallow per key). */

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import type { Tables } from "../supabase/database.types";
 import { createClient, type ServerSupabase } from "../supabase/server";
 import type { Profile } from "./session";
 
@@ -44,4 +45,15 @@ export async function readJson<T>(req: Request): Promise<T> {
   } catch {
     throw new ApiError(400, "Invalid JSON body.");
   }
+}
+
+/** Signed-in dealer (first membership) for dealer API routes, or throw 403. */
+export async function apiDealer(opts: { owner?: boolean } = {}) {
+  const { supabase, profile } = await apiProfile();
+  const { data: membership } = await supabase.from("dealership_members")
+    .select("dealership_id, role, dealership:dealerships(*)").eq("user_id", profile.id).limit(1).maybeSingle();
+  if (!membership?.dealership) throw new ApiError(403, "Dealer accounts only.");
+  if (opts.owner && membership.role !== "owner") throw new ApiError(403, "Only owners can do that.");
+  const dealership = membership.dealership as unknown as Tables<"dealerships">;
+  return { supabase, profile, role: membership.role, dealership };
 }

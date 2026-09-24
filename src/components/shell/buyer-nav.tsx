@@ -52,6 +52,7 @@ export function BuyerNav({ offerCount, appName, isDealer, isAdmin }: { offerCoun
           ))}
         </ul>
         <div className="mt-auto space-y-1 text-sm">
+          <Link href="/sell" className="tap flex items-center rounded-2xl px-3 font-bold text-muted hover:text-ink">Sell your car</Link>
           {isDealer && <Link href="/dealer" className="tap flex items-center rounded-2xl px-3 font-bold text-muted hover:text-ink">Dealer inbox</Link>}
           {isAdmin && <Link href="/admin" className="tap flex items-center rounded-2xl px-3 font-bold text-muted hover:text-ink">Admin</Link>}
           <div className="px-3 pt-4 text-xs text-subtle">

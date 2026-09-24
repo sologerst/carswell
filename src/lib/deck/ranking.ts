@@ -312,7 +312,8 @@ export function cardBadges(s: Scored, prefs: Prefs): Badge[] {
   }
   if (s.car.title_status === null && prefs.clean_title?.value === true) badges.push({ kind: "title_not_reported", text: "Title not reported" });
   if (s.car.accident_count === null && prefs.no_accidents?.value === true) badges.push({ kind: "history_not_reported", text: "History not reported" });
-  return badges.slice(0, 3);
+  // Paid placement is always disclosed, so it is never trimmed.
+  return s.car.is_promoted ? [{ kind: "promoted", text: "Promoted" }, ...badges.slice(0, 2)] : badges.slice(0, 3);
 }
 
 // Batch assembly ----------------------------------------------------------------
@@ -355,6 +356,11 @@ export function buildBatch(candidates: DeckCandidate[], ctx: ScoreContext, rng: 
   const size = ctx.config.exploration.batch_size;
   const nExplore = explorationCount(ctx.swipes, ctx.config.exploration);
   const scored = candidates.map((c) => scoreCar(c, ctx));
+  // Paid placement: a small boost for at most max_share of the batch. Every
+  // promoted card carries a "Promoted" label (see cardBadges).
+  const promoCap = Math.max(1, Math.floor(size * ctx.config.promotions.max_share));
+  scored.filter((s) => s.car.is_promoted).sort((a, b) => b.score - a.score).slice(0, promoCap)
+    .forEach((s) => { s.score = Math.min(1, s.score + ctx.config.promotions.boost); });
   const main = scored.filter((s) => !s.car.is_exploration).sort((a, b) => b.score - a.score);
   const explorePool = scored
     .filter((s) => s.car.is_exploration)

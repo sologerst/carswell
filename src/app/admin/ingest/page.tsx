@@ -12,7 +12,9 @@ const JOBS = [
   ["enrich", "Enrich", "Feature extraction + style embeddings"],
   ["dispatch", "Dispatch", "Lead emails, summaries, push"],
   ["maintenance", "Maintenance", "Expire offers and stale listings"],
-  ["stats", "Stats", "Price regressions and deal ratings"],
+  ["stats", "Stats", "Price regressions, deal ratings, listing funnels, dealer reply times"],
+  ["insights", "Insights", "Buyer budgets + k-anonymous demand rollups"],
+  ["feeds", "Dealer feeds", "Pull dealer CSV feed URLs"],
 ] as const;
 
 export default async function AdminIngest() {

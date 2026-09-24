@@ -114,6 +114,10 @@ export interface DeckCandidate {
   distance_mi: number;
   visual_sim: number | null;
   is_exploration: boolean;
+  /** Paid placement (Phase 2); always shown with a "Promoted" label. */
+  is_promoted: boolean;
+  /** Size of the eligible set (deck_candidates only). */
+  total_eligible?: number;
 }
 
 export interface Affinity {

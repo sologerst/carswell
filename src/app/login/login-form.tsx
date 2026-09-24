@@ -11,7 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 const DEMO = [
   { email: "buyer@carswipe.dev", label: "Demo buyer", hint: "Onboarded, with likes and an offer" },
   { email: "dealer@carswipe.dev", label: "Demo dealer", hint: "Music City Motors lead inbox" },
-  { email: "admin@carswipe.dev", label: "Admin", hint: "Config, dealers, outbox" },
+  { email: "seller@carswipe.dev", label: "Demo private seller", hint: "Two live cars, a buyer waiting" },
+  { email: "admin@carswipe.dev", label: "Admin", hint: "Config, dealers, moderation, market" },
 ];
 
 /**
@@ -59,7 +60,7 @@ export function LoginForm({ next, demo, oauth }: { next: string | null; demo: bo
     setBusy(false);
     if (error) setError(`Demo login failed: ${error.message}. Did you run npm run seed?`);
     else {
-      router.replace(demoEmail.startsWith("dealer") ? "/dealer" : demoEmail.startsWith("admin") ? "/admin" : next ?? "/deck");
+      router.replace(demoEmail.startsWith("dealer") ? "/dealer" : demoEmail.startsWith("admin") ? "/admin" : demoEmail.startsWith("seller") ? "/sell" : next ?? "/deck");
       router.refresh();
     }
   }

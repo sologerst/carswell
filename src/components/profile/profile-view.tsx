@@ -145,7 +145,10 @@ export function ProfileView({ profile, prefs: initialPrefs, lifeStory, vapidKey 
       </div>
 
       <Card id="trade" className="mt-8 p-5">
-        <SectionTitle>Trade-in</SectionTitle>
+        <div className="flex items-center justify-between gap-2">
+          <SectionTitle>Trade-in</SectionTitle>
+          <Link href="/trade" className="mb-3 text-xs font-bold text-accent-soft hover:underline">What&apos;s it worth?</Link>
+        </div>
         <TradeEditor value={trade} onSave={(t) => patch({ set: { trade_in: { value: t, tier: prefs.trade_in?.tier ?? "must", source: "said" } } }, "Trade-in saved")} />
       </Card>
 
@@ -157,6 +160,17 @@ export function ProfileView({ profile, prefs: initialPrefs, lifeStory, vapidKey 
         </div>
         <p className="mt-2 text-xs text-subtle">We use your ZIP only; GPS is never stored.</p>
         <Button size="sm" className="mt-3" onClick={() => patch({ profile: { zip, radius_mi: radius } })}>Save location</Button>
+      </Card>
+
+      <Card className="mt-4 grid gap-3 p-5 sm:grid-cols-2">
+        <Link href="/sell" className="rounded-2xl bg-navy-850 p-4 hover:bg-navy-800">
+          <p className="font-bold">Sell your car</p>
+          <p className="text-sm text-muted">Scan the VIN, snap photos, reach matched local buyers. Free for private sellers.</p>
+        </Link>
+        <Link href="/join/dealer" className="rounded-2xl bg-navy-850 p-4 hover:bg-navy-800">
+          <p className="font-bold">Are you a dealer?</p>
+          <p className="text-sm text-muted">Get leads from buyers who already liked your cars. Pay only per matched lead.</p>
+        </Link>
       </Card>
 
       <Card className="mt-4 space-y-4 p-5">

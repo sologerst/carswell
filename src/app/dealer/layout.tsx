@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { requireDealer } from "@/lib/server/session";
 
+const NAV = [
+  ["/dealer", "Leads"],
+  ["/dealer/inventory", "Inventory"],
+  ["/dealer/insights", "Insights"],
+  ["/dealer/team", "Team"],
+  ["/dealer/billing", "Billing"],
+  ["/dealer/settings", "Settings"],
+] as const;
+
 export default async function DealerLayout({ children }: LayoutProps<"/dealer">) {
   const { profile, membership } = await requireDealer();
   return (
@@ -11,9 +20,10 @@ export default async function DealerLayout({ children }: LayoutProps<"/dealer">)
             <span className="brand-gradient grid size-8 place-items-center rounded-lg font-bold">C</span>
             <span className="hidden font-bold sm:inline">Dealer inbox</span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm font-bold" aria-label="Dealer">
-            <Link href="/dealer" className="tap inline-flex items-center rounded-full px-3 text-muted hover:text-ink">Leads</Link>
-            <Link href="/dealer/settings" className="tap inline-flex items-center rounded-full px-3 text-muted hover:text-ink">Settings</Link>
+          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm font-bold scrollbar-none" aria-label="Dealer">
+            {NAV.map(([href, label]) => (
+              <Link key={href} href={href} className="tap inline-flex shrink-0 items-center rounded-full px-3 text-muted hover:text-ink">{label}</Link>
+            ))}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="hidden text-muted md:inline">{membership.dealership.name}</span>
@@ -22,6 +32,14 @@ export default async function DealerLayout({ children }: LayoutProps<"/dealer">)
           </div>
         </div>
       </header>
+      {!membership.dealership.verified_at && (
+        <div className="border-b border-deal-fair/30 bg-deal-fair/10">
+          <p className="mx-auto max-w-7xl px-4 py-2 text-sm lg:px-8">
+            <span className="font-bold text-deal-fair">Pending verification.</span> Upload your inventory now; it goes live in buyer decks once CarSwipe verifies {membership.dealership.name}.
+            {!membership.dealership.phone_verified_at && <> <Link href="/dealer/settings" className="font-bold underline">Verify your phone</Link> to speed it up.</>}
+          </p>
+        </div>
+      )}
       <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">{children}</main>
     </div>
   );

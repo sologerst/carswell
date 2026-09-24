@@ -40,7 +40,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Start Supabase
-        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,storage-api
+        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
       - name: Write .env.local from the local stack
         run: |
           eval "$(npx supabase status -o env | sed 's/^/export SB_/')"
@@ -59,11 +59,38 @@ jobs:
           npm run start &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000/login && break; sleep 1; done
           npm run test:e2e
+          CHROME_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")" npx -y @lhci/cli@0.15.1 autorun
         env:
           E2E_BASE_URL: http://localhost:3000
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
-          path: playwright-report
+          path: |
+            playwright-report
+            lighthouse-report
           retention-days: 7
+
+  performance:
+    name: Deck latency at 50,000 listings
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Shared runners vary in CPU, so this reports without blocking merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start Supabase
+        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Write .env.local from the local stack
+        run: |
+          eval "$(npx supabase status -o env | sed 's/^/export SB_/')"
+          cp .env.example .env.local
+          sed -i "s#^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=.*#NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SB_PUBLISHABLE_KEY}#" .env.local
+      - run: npx supabase db reset
+      - run: npm run perf:seed
+      - run: npm run perf:deck

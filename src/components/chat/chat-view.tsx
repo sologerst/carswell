@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, ArrowUp, CalendarClock, Flag, Phone, ShieldCheck, UserX } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowUp, CalendarClock, FileText, Flag, KeyRound, Phone, ShieldCheck, UserX } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { DraftTray } from "@/components/agent/draft-tray";
@@ -14,8 +14,8 @@ import { api, cn } from "@/lib/utils";
 export interface ChatMessage {
   id: string;
   sender_id: string | null;
-  sender_role: "buyer" | "dealer" | "system";
-  kind: "text" | "test_drive_proposal" | "phone_share" | "system";
+  sender_role: "buyer" | "dealer" | "seller" | "system";
+  kind: "text" | "test_drive_proposal" | "phone_share" | "system" | "document" | "safety";
   body: string;
   meta: Record<string, unknown>;
   flagged: boolean;
@@ -23,21 +23,24 @@ export interface ChatMessage {
 }
 
 export function ChatView({
-  conversationId, interestId, role, title, counterpart, photo, initial, backHref, phoneShared, dealershipId,
+  conversationId, interestId, role, title, counterpart, photo, initial, backHref, phoneShared, dealershipId, sellerUserId = null,
   heightClass = "h-[calc(100dvh-68px-var(--safe-bottom))] lg:h-dvh",
 }: {
   heightClass?: string;
   conversationId: string;
   interestId: string;
-  role: "buyer" | "dealer";
+  role: "buyer" | "dealer" | "seller";
   title: string;
   counterpart: string;
   photo: string | null;
   initial: ChatMessage[];
   backHref: string;
   phoneShared: boolean;
-  dealershipId: string;
+  dealershipId: string | null;
+  /** Set for private sales. */
+  sellerUserId?: string | null;
 }) {
+  const privateSale = Boolean(sellerUserId);
   const toast = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>(initial);
   const [text, setText] = useState("");
@@ -90,10 +93,10 @@ export function ChatView({
     setMenu(false);
   }
 
-  async function report(target: "message" | "dealership", id: string) {
+  async function report(target: "message" | "dealership" | "user", id: string) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("reports").insert({ reporter_id: user!.id, target_type: target, target_id: id, reason: target === "message" ? "suspicious_message" : "dealer_conduct" });
+    const { error } = await supabase.from("reports").insert({ reporter_id: user!.id, target_type: target, target_id: id, reason: target === "message" ? "suspicious_message" : target === "user" ? "seller_conduct" : "dealer_conduct" });
     toast(error ? error.message : "Reported. Our team will review it.");
     setMenu(false);
   }
@@ -101,7 +104,9 @@ export function ChatView({
   async function block() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("blocks").insert({ user_id: user!.id, blocked_dealership_id: dealershipId });
+    const { error } = await supabase.from("blocks").insert(
+      sellerUserId ? { user_id: user!.id, blocked_user_id: sellerUserId } : { user_id: user!.id, blocked_dealership_id: dealershipId },
+    );
     toast(error ? error.message : `Blocked ${counterpart}. You won't see their cars.`);
     setMenu(false);
   }
@@ -116,31 +121,47 @@ export function ChatView({
           <p className="truncate font-bold">{counterpart}</p>
           <p className="truncate text-xs text-muted">{title}</p>
         </div>
+        {role === "buyer" && (
+          <Button size="sm" variant="secondary" asChild><Link href={`/journey/${interestId}`}><KeyRound /> Next steps</Link></Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => setMenu(true)} aria-label="Chat options">•••</Button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <p className="mx-auto mb-4 flex max-w-md items-start gap-2 rounded-2xl bg-navy-850 px-3 py-2 text-xs text-muted">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-deal-good" />
-          Meet at the dealership for test drives. Never wire money, pay with gift cards, or share a verification code.
+          {privateSale
+            ? "Private sale: meet in a public place, check the title matches the seller's ID, and never pay by gift card, wire or crypto."
+            : "Meet at the dealership for test drives. Never wire money, pay with gift cards, or share a verification code."}
         </p>
         <ul className="space-y-2" aria-live="polite">
           {messages.map((m) => {
             const mine = m.sender_role === role;
+            if (m.kind === "safety") {
+              return (
+                <li key={m.id} className="mx-auto max-w-md rounded-2xl border border-deal-good/30 bg-deal-good/10 px-4 py-3 text-sm">
+                  <p className="mb-1 flex items-center gap-1.5 font-bold text-deal-good"><ShieldCheck className="size-4" /> Safety tips</p>
+                  <p className="text-muted">{m.body}</p>
+                </li>
+              );
+            }
             if (m.sender_role === "system" || m.kind === "system") {
               return <li key={m.id} className="py-2 text-center text-xs font-bold text-subtle">{m.body}</li>;
             }
+            const docUrl = m.kind === "document" && typeof m.meta?.url === "string" ? m.meta.url : null;
             const windows = (m.meta?.windows as { day: string; time: string }[] | undefined) ?? [];
             return (
               <li key={m.id} className={cn("flex flex-col", mine ? "items-end" : "items-start")}>
                 <div className={cn("max-w-[80%] rounded-3xl px-4 py-2.5 text-[15px] leading-relaxed", mine ? "rounded-br-lg bg-accent text-white" : "rounded-bl-lg bg-navy-800")}>
                   {m.kind === "test_drive_proposal" && <p className="mb-1 flex items-center gap-1 text-xs font-bold opacity-80"><CalendarClock className="size-3.5" /> Test-drive proposal</p>}
                   {m.kind === "phone_share" && <p className="mb-1 flex items-center gap-1 text-xs font-bold opacity-80"><Phone className="size-3.5" /> Phone shared</p>}
+                  {m.kind === "document" && <p className="mb-1 flex items-center gap-1 text-xs font-bold opacity-80"><FileText className="size-3.5" /> Document</p>}
                   <p className="whitespace-pre-wrap">{m.body}</p>
+                  {docUrl && <a href={docUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm font-bold underline">Open (link expires in 7 days)</a>}
                   {m.kind === "test_drive_proposal" && !mine && windows.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {windows.map((w) => (
-                        <button key={w.day + w.time} className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold hover:bg-white/25 cursor-pointer" onClick={() => send(`Confirmed: ${w.day}, ${w.time}. See you then!`)}>
+                        <button key={w.day + w.time} className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold hover:bg-white/25 cursor-pointer" onClick={() => send(`Confirmed: ${w.day}, ${w.time}. See you then!`, "text", { confirmed_window: w })}>
                           {w.day} {w.time}
                         </button>
                       ))}
@@ -180,7 +201,9 @@ export function ChatView({
           {role === "buyer" && (
             <Button variant="secondary" onClick={sharePhone} disabled={shared}><Phone /> {shared ? "Phone number shared" : `Share my phone number with ${counterpart}`}</Button>
           )}
-          <Button variant="secondary" onClick={() => report("dealership", dealershipId)}><Flag /> Report {role === "buyer" ? "this dealer" : "this conversation"}</Button>
+          <Button variant="secondary" onClick={() => (privateSale && role === "buyer" ? report("user", sellerUserId!) : dealershipId ? report("dealership", dealershipId) : report("message", conversationId))}>
+            <Flag /> Report {role === "buyer" ? (privateSale ? "this seller" : "this dealer") : "this conversation"}
+          </Button>
           {role === "buyer" && <Button variant="danger" onClick={block}><UserX /> Block {counterpart}</Button>}
         </div>
       </Sheet>

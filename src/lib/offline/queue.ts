@@ -71,10 +71,13 @@ export function flush(): Promise<SwipeResult[]> {
       const q = await load();
       if (!q.length || (typeof navigator !== "undefined" && !navigator.onLine)) return [];
       const batch = q.slice(0, 200);
+      const body = JSON.stringify({ swipes: batch });
       const res = await fetch("/api/swipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ swipes: batch }),
+        body,
+        // Survive navigation away from the deck (keepalive bodies max out at 64 KB).
+        keepalive: body.length < 60_000,
       });
       if (!res.ok) {
         // 4xx other than auth means a bad item; drop invalid ones rather than loop forever.

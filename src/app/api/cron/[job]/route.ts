@@ -1,12 +1,15 @@
 import { env, features } from "@/lib/env";
 import { json } from "@/lib/server/api";
+import { reportLeadCharges } from "@/lib/server/billing";
+import { runDealerFeeds } from "@/lib/server/dealer-feed";
 import { runEnrichment } from "@/lib/server/enrich";
+import { runInsights } from "@/lib/server/insights";
 import { runIngest } from "@/lib/server/ingest";
 import { dispatchLeads } from "@/lib/server/leads";
 import { pushPendingNotifications } from "@/lib/server/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const JOBS = ["ingest", "enrich", "dispatch", "maintenance", "stats", "insights"] as const;
+const JOBS = ["ingest", "enrich", "dispatch", "maintenance", "stats", "insights", "feeds"] as const;
 type Job = (typeof JOBS)[number];
 
 /**
@@ -15,8 +18,9 @@ type Job = (typeof JOBS)[number];
  *   enrich      every 10 min   listing enrichment + photo embeddings
  *   dispatch    every 5 min    lead and notification retries
  *   maintenance hourly         offer expiry, stale listings, purges
- *   stats       daily          market price stats, deal ratings
+ *   stats       daily          market price stats, deal ratings, listing funnels, dealer reply times
  *   insights    daily          demand-intelligence rollups (Phase 2)
+ *   feeds       daily          pull dealer CSV feed URLs (Phase 2)
  */
 export async function GET(req: Request, ctx: RouteContext<"/api/cron/[job]">) {
   const { job } = await ctx.params;
@@ -37,7 +41,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/cron/[job]">) {
       result = await runEnrichment(admin);
       break;
     case "dispatch":
-      result = { leads: await dispatchLeads(admin), pushed: await pushPendingNotifications(admin) };
+      result = { leads: await dispatchLeads(admin), pushed: await pushPendingNotifications(admin), billing: await reportLeadCharges(admin) };
       break;
     case "maintenance": {
       const { data, error } = await admin.rpc("run_maintenance");
@@ -48,11 +52,18 @@ export async function GET(req: Request, ctx: RouteContext<"/api/cron/[job]">) {
     case "stats": {
       const { data, error } = await admin.rpc("refresh_market_stats");
       if (error) return json({ error: error.message }, { status: 500 });
-      result = { rated: data };
+      const [{ data: funnels }, { data: dealers }] = await Promise.all([
+        admin.rpc("rollup_listing_events", { p_days: 2 }),
+        admin.rpc("refresh_dealer_stats"),
+      ]);
+      result = { rated: data, funnel_rows: funnels, dealers_timed: dealers };
       break;
     }
     case "insights":
-      result = { skipped: "Phase 2" };
+      result = await runInsights(admin);
+      break;
+    case "feeds":
+      result = await runDealerFeeds(admin);
       break;
   }
   return json({ job, ms: Date.now() - started, result });

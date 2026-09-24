@@ -76,6 +76,21 @@ export function outTheDoor(input: OtdInput, cfg: TaxConfig): OtdBreakdown {
   };
 }
 
+/**
+ * The vehicle price that produces a target out-the-door total with the same
+ * fees and trade (used to answer a counteroffer). Whole dollars, rounded down.
+ */
+export function priceForOtd(targetOtd: number, input: Omit<OtdInput, "price">, cfg: TaxConfig): number {
+  let lo = 0;
+  let hi = Math.max(1, targetOtd * 2);
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (outTheDoor({ ...input, price: mid }, cfg).total > targetOtd) hi = mid;
+    else lo = mid;
+  }
+  return Math.floor(lo);
+}
+
 /** Standard amortized monthly payment. */
 export function monthlyPayment(principal: number, aprPercent: number, termMonths: number): number {
   if (principal <= 0 || termMonths <= 0) return 0;

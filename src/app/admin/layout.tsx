@@ -4,6 +4,9 @@ import { requireAdmin } from "@/lib/server/session";
 const NAV = [
   ["/admin", "Overview"],
   ["/admin/dealers", "Dealers"],
+  ["/admin/moderation", "Moderation"],
+  ["/admin/billing", "Billing"],
+  ["/admin/market", "Market"],
   ["/admin/config", "Config"],
   ["/admin/outbox", "Outbox"],
   ["/admin/reports", "Reports"],

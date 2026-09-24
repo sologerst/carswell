@@ -55,3 +55,20 @@ export function modelYearFromVin(vin: string): number | null {
   const idx = YEAR_CODES.indexOf(vin.toUpperCase()[9]);
   return idx === -1 ? null : 2010 + idx;
 }
+
+/**
+ * Find a valid VIN in scanned or OCR'd text. Door-jamb Code 39 barcodes often
+ * carry a leading "I" (import) or trailing characters, and OCR confuses
+ * O/0, I/1 and Q/0, which never appear in VINs.
+ */
+export function extractVin(text: string): string | null {
+  const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const fixed = cleaned.replace(/O/g, "0").replace(/Q/g, "0");
+  for (const candidate of [cleaned, fixed, fixed.replace(/I/g, "1")]) {
+    for (let i = 0; i + 17 <= candidate.length; i++) {
+      const window = candidate.slice(i, i + 17);
+      if (isValidVin(window)) return window;
+    }
+  }
+  return null;
+}

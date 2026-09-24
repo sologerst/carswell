@@ -4,11 +4,16 @@ export const DEMO = {
   buyer: { email: "buyer@carswipe.dev", label: "Demo buyer" },
   dealer: { email: "dealer@carswipe.dev", label: "Demo dealer" },
   admin: { email: "admin@carswipe.dev", label: "Admin" },
+  seller: { email: "seller@carswipe.dev", label: "Demo private seller" },
 } as const;
 
 export const SEEDED = {
   newLeadInterest: "00000000-0000-4000-8000-0000000e0001",
   matchedConversation: "00000000-0000-4000-8000-0000000c0001",
+  offeredInterest: "00000000-0000-4000-8000-0000000e0002",
+  matchedInterest: "00000000-0000-4000-8000-0000000e0003",
+  sellerLead: "00000000-0000-4000-8000-0000000e0101",
+  pendingPrivateListing: "00000000-0000-4000-8000-000000000cf3",
 };
 
 export async function loginDemo(page: Page, who: keyof typeof DEMO) {

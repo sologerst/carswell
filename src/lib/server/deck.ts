@@ -74,6 +74,7 @@ export async function getDeck(
   const radiusMi = profile.radius_mi;
   const filters = filtersFor(ctx, profile, ctx.prefs, radiusMi, opts.exclude);
 
+  // One scan returns the candidates and the size of the eligible set.
   const { data, error } = await supabase.rpc("deck_candidates", {
     p_filters: filters as never,
     p_limit: ctx.config.deck.candidates,
@@ -100,8 +101,7 @@ export async function getDeck(
   }
   const cards = batch.map((s) => toCard(s.car, ctx, scoreCtx, s));
 
-  const { data: countData } = await supabase.rpc("deck_count", { p_filters: filters as never });
-  const total = Number(countData ?? candidates.length);
+  const total = Number((data?.[0] as { total_eligible?: number } | undefined)?.total_eligible ?? candidates.length);
   const remaining = Math.max(0, total - cards.length);
 
   let rescue: DeckResponse["rescue"] = [];

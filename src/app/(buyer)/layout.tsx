@@ -1,4 +1,5 @@
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { SwipeSync } from "@/components/pwa/swipe-sync";
 import { BuyerNav } from "@/components/shell/buyer-nav";
 import { createClient } from "@/lib/supabase/server";
 import { getDealerMemberships, requireOnboarded } from "@/lib/server/session";
@@ -15,6 +16,7 @@ export default async function BuyerLayout({ children }: LayoutProps<"/">) {
       <BuyerNav offerCount={count ?? 0} appName={process.env.NEXT_PUBLIC_APP_NAME ?? "CarSwipe"} isDealer={memberships.length > 0} isAdmin={profile.is_admin} />
       <div className="pb-[calc(68px+var(--safe-bottom))] lg:pb-0">{children}</div>
       <InstallPrompt />
+      <SwipeSync />
     </div>
   );
 }

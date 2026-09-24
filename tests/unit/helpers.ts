@@ -56,6 +56,7 @@ export function car(overrides: Partial<DeckCandidate> = {}): DeckCandidate {
     distance_mi: 8,
     visual_sim: null,
     is_exploration: false,
+    is_promoted: false,
     ...overrides,
   };
 }

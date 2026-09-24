@@ -16,6 +16,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Buyer contact details never leave the database before a match, and never go into AI prompts sent about dealers.
 - Every AI call goes through `src/lib/ai/client.ts` (budget, refusal fallback, returns null for fallback) and has a non-AI template path. Nothing is sent on a buyer's behalf without approval.
 - Tunable numbers live in `app_config` (typed defaults in `src/lib/config.ts`), not in code.
+- Private listings go live only through `publishListing()` (`src/lib/server/sell.ts`), which runs the moderation rules in `src/lib/safety/listing-risk.ts`. Known scam patterns are rejected, never just flagged. The deck shows only `review_status = 'approved'` cars.
+- Demand insights are aggregates only: every reported number covers at least `app_config.insights.k_anonymity` distinct buyers (pgTAP-tested). Never expose per-buyer rows to dealers.
+- Money moves through Stripe only (Checkout, Billing Meters, Portal); webhooks are idempotent via `stripe_events`. Fees are per matched lead, never per sale. Without `STRIPE_SECRET_KEY` the app runs on a dev entitlement.
+- Paid placement is always labeled "Promoted" and capped (`app_config.promotions`).
+- The deck SQL (`deck_candidates`, migration 13) builds its WHERE clause from typed literals. Keep it that way, and re-run `npm run perf:seed && npm run perf:deck` after changing it (p95 < 150 ms at 50k listings).
 - Before pushing: `npm run lint && npm run typecheck && npm test && npm run build`; for DB changes also `npm run seed && npx supabase test db`.
 
 ## Dependencies (spec rule: no new library without a one-line justification)
@@ -33,6 +38,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | `idb-keyval` | Tiny IndexedDB wrapper for the offline swipe queue |
 | `web-push` | Sends Web Push (VAPID) notifications |
 | `server-only` | Build-time guard that server modules never reach the client |
+| `stripe` | Billing (Phase 2): Checkout, Billing Meters for matched leads, customer portal, webhook verification |
+| `@sentry/nextjs` | Error monitoring (spec stack); env-gated, no session replay, PII scrubbed |
+| `sharp` | Server-side photo hashing (duplicate / stolen photo checks), quality checks and resizing for AI vision; already Next's image dependency |
 | dev: `supabase` | Local stack, migrations, type generation, pgTAP runner |
 | dev: `vitest`, `@playwright/test`, `@axe-core/playwright` | Unit, end-to-end and accessibility tests (spec test matrix) |
 | dev: `tsx` | Runs the TypeScript fixture and icon generators |

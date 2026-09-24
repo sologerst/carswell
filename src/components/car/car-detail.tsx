@@ -87,9 +87,12 @@ export function CarDetail({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{listingTitle(l, true)}</h2>
-            <p className="mt-1 text-muted">{l.seller_type === "private" ? "Private seller" : l.dealer_name}{l.distance_mi ? ` · ${Math.round(l.distance_mi)} mi away` : ""}</p>
+            <p className="mt-1 text-muted">{l.seller_type === "private" ? (l.source === "private" ? "Private seller · phone verified" : "Private seller") : l.dealer_name}{l.distance_mi ? ` · ${Math.round(l.distance_mi)} mi away` : ""}</p>
           </div>
-          <DealBadge rating={l.deal_rating} />
+          <div className="flex flex-col items-end gap-1.5">
+            <DealBadge rating={l.deal_rating} />
+            {l.is_promoted && <Pill>Promoted</Pill>}
+          </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <Stat label="Price" value={usd(l.price)} />
@@ -97,7 +100,9 @@ export function CarDetail({
           <Stat label={card.afterTrade ? "Est. OTD after trade" : "Est. out the door"} value={usd(card.otdEstimate)} />
         </div>
         <p className="mt-2 text-xs text-subtle">
-          Estimates include TN sales tax, title and the dealer&apos;s doc fee{card.afterTrade ? ", minus your trade-in equity" : ""}, using your budget settings. Not a credit offer.
+          {l.seller_type === "private"
+            ? <>Estimates include TN sales tax (paid at the county clerk in a private sale) and title{card.afterTrade ? ", minus your trade-in equity" : ""}, using your budget settings. Not a credit offer.</>
+            : <>Estimates include TN sales tax, title and the dealer&apos;s doc fee{card.afterTrade ? ", minus your trade-in equity" : ""}, using your budget settings. Not a credit offer.</>}
           {delta ? ` Priced ${delta}.` : ""}
         </p>
         {l.is_active === false && <p className="mt-3 rounded-2xl bg-deal-bad/15 px-4 py-2 text-sm font-bold text-deal-bad">Sold</p>}

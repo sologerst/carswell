@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Clock, MessageCircle, Star } from "lucide-react";
+import { ArrowDownRight, Check, Clock, KeyRound, MessageCircle, Star } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DraftTray } from "@/components/agent/draft-tray";
+import { CounterSheet } from "@/components/offers/counter-sheet";
 import { Button } from "@/components/ui/button";
 import { Celebrate } from "@/components/ui/celebrate";
 import { Card, Pill } from "@/components/ui/primitives";
@@ -28,7 +29,14 @@ export interface OfferRow {
   notes: string | null;
   expires_at: string;
   created_at: string;
+  apr: number | null;
+  term_months: number | null;
+  lender: string | null;
+  down_payment: number | null;
+  monthly_estimate: number | null;
 }
+
+export interface CounterRow { id: string; offer_id: string; amount_otd: number; status: string; created_at: string }
 
 export interface OfferGroup {
   interestId: string;
@@ -39,7 +47,9 @@ export interface OfferGroup {
   conversationId: string | null;
   listing: { id: string; title: string; price: number; photo: string | null };
   dealer: { name: string; leadChannel: string; rating: number | null; responseMinutes: number | null } | null;
+  privateSale: boolean;
   offers: OfferRow[];
+  counters: CounterRow[];
 }
 
 export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: OfferGroup[]; assumptions: string; askTradeEstimate: boolean }) {
@@ -48,6 +58,7 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
   const supabase = createClient();
   const [celebrate, setCelebrate] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [countering, setCountering] = useState<{ offer: OfferRow; title: string } | null>(null);
 
   async function pick(g: OfferGroup, o: OfferRow) {
     setBusy(o.id);
@@ -89,7 +100,7 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
       {askTradeEstimate && withOffers.length > 0 && (
         <Card className="flex items-center justify-between gap-4 p-4">
           <p className="text-sm"><span className="font-bold">Want an estimate for your trade-in?</span> <span className="text-muted">Add its value so offers compare fairly.</span></p>
-          <Button size="sm" variant="secondary" asChild><Link href="/profile#trade">Add trade-in</Link></Button>
+          <Button size="sm" variant="secondary" asChild><Link href="/trade">Estimate trade-in</Link></Button>
         </Card>
       )}
 
@@ -105,7 +116,7 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
                   {g.listing.photo && <img src={g.listing.photo} alt="" className="h-16 w-24 shrink-0 rounded-2xl object-cover" />}
                   <div className="min-w-0 flex-1">
                     <Link href={`/car/${g.listing.id}`} className="block truncate font-bold hover:underline">{g.listing.title}</Link>
-                    <p className="text-sm text-muted">Listed {usd(g.listing.price)} · {g.dealer?.name}</p>
+                    <p className="text-sm text-muted">Listed {usd(g.listing.price)} · {g.dealer?.name ?? (g.privateSale ? "Private seller" : "")}</p>
                   </div>
                   {matched && <Pill tone="good"><Check className="size-3" /> {g.status === "purchased" ? "Bought" : "Matched"}</Pill>}
                 </div>
@@ -131,6 +142,9 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
                       <Row label="Tax" values={g.offers.map((o) => itemized(o, o.tax))} />
                       <Row label="Title & registration" values={g.offers.map((o) => itemized(o, o.title_fees))} />
                       <Row label="Trade credit" values={g.offers.map((o) => (o.trade_credit ? `−${usd(o.trade_credit)}` : "—"))} />
+                      {g.offers.some((o) => o.apr) && (
+                        <Row label="Their financing" values={g.offers.map((o) => (o.apr ? `${o.apr}% APR · ${o.term_months ?? "?"} mo${o.down_payment ? ` · ${usd(o.down_payment)} down` : ""}${o.monthly_estimate ? ` · ${usd(o.monthly_estimate)}/mo` : ""}${o.lender ? ` · ${o.lender}` : ""}` : "—"))} />
+                      )}
                       <tr>
                         <td className="px-4 py-3 text-subtle">Status</td>
                         {g.offers.map((o) => (
@@ -138,6 +152,10 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
                             {o.status === "active" && !matched ? (
                               <div className="flex flex-col gap-2">
                                 <Button size="sm" onClick={() => pick(g, o)} disabled={busy === o.id}>Pick this offer</Button>
+                                <CounterStatus counters={g.counters.filter((c) => c.offer_id === o.id)} />
+                                {!g.counters.some((c) => c.offer_id === o.id && c.status === "open") && (
+                                  <Button size="sm" variant="secondary" onClick={() => setCountering({ offer: o, title: g.listing.title })}><ArrowDownRight /> Counteroffer</Button>
+                                )}
                                 <button className="text-xs font-bold text-muted hover:text-ink cursor-pointer" onClick={() => decline(o)}>Decline</button>
                                 <span className="inline-flex items-center gap-1 text-xs text-subtle"><Clock className="size-3" /> Expires {relativeTime(o.expires_at)}</span>
                               </div>
@@ -152,15 +170,16 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
                 </div>
                 {g.offers.some((o) => o.notes) && (
                   <div className="space-y-1 border-t border-line px-4 py-3 text-sm text-muted">
-                    {g.offers.filter((o) => o.notes).map((o) => <p key={o.id}><span className="font-bold text-ink">Dealer note:</span> {o.notes}</p>)}
+                    {g.offers.filter((o) => o.notes).map((o) => <p key={o.id}><span className="font-bold text-ink">{g.privateSale ? "Seller" : "Dealer"} note:</span> {o.notes}</p>)}
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-2 border-t border-line p-4">
                   {matched && g.conversationId ? (
                     <>
                       <Button size="sm" asChild><Link href={`/chat/${g.conversationId}`}><MessageCircle /> Open chat</Link></Button>
+                      <Button size="sm" variant="secondary" asChild><Link href={`/journey/${g.interestId}`}><KeyRound /> Next steps</Link></Button>
                       {g.status === "matched" && <Button size="sm" variant="secondary" onClick={() => bought(g)}>I bought it</Button>}
-                      {g.status === "purchased" && (
+                      {g.status === "purchased" && !g.privateSale && (
                         <span className="flex items-center gap-1 text-sm text-muted">Rate the seller:
                           {[1, 2, 3, 4, 5].map((n) => <button key={n} aria-label={`${n} stars`} onClick={() => review(g, n)} className="tap grid place-items-center cursor-pointer"><Star className="size-5 text-deal-fair" /></button>)}
                         </span>
@@ -173,8 +192,12 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
               </Card>
             );
           })}
-          <p className="text-xs text-subtle">Offers are out-the-door totals as quoted by the dealer, including tax, title and fees. {assumptions}</p>
+          <p className="text-xs text-subtle">Offers are out-the-door totals as quoted by the seller, including tax, title and fees. {assumptions}</p>
         </section>
+      )}
+      {countering && (
+        <CounterSheet offerId={countering.offer.id} offerOtd={countering.offer.otd_total} title={countering.title}
+          open={Boolean(countering)} onOpenChange={(o) => !o && setCountering(null)} />
       )}
 
       {waiting.length > 0 && (
@@ -197,7 +220,7 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
                     {g.kind === "superlike" && <Pill tone="drive">Test drive</Pill>}
                   </div>
                   {g.notes.length > 0 && <p className={cn("mt-3 rounded-2xl bg-navy-850 px-3 py-2 text-xs text-muted")}>You sent: “{g.notes[g.notes.length - 1].body.slice(0, 140)}{g.notes[g.notes.length - 1].body.length > 140 ? "…" : ""}”</p>}
-                  {g.dealer && g.dealer.leadChannel !== "none" && (
+                  {(g.privateSale || (g.dealer && g.dealer.leadChannel !== "none")) && (
                     <div className="mt-3"><DraftTray interestId={g.interestId} intents={["request_otd", "test_drive"]} onSent={() => router.refresh()} /></div>
                   )}
                 </Card>
@@ -208,6 +231,13 @@ export function OffersView({ groups, assumptions, askTradeEstimate }: { groups: 
       )}
     </div>
   );
+}
+
+function CounterStatus({ counters }: { counters: CounterRow[] }) {
+  const last = [...counters].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (!last) return null;
+  const text = { open: "waiting for a reply", declined: "declined", accepted: "accepted", superseded: "answered with a new offer" }[last.status] ?? last.status;
+  return <span className="text-xs text-muted">You countered {usd(last.amount_otd)}: {text}</span>;
 }
 
 /** Email offers often quote only the total; don't show "$0" for lines they didn't itemize. */

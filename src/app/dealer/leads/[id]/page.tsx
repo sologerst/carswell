@@ -23,7 +23,11 @@ export default async function LeadPage({ params }: PageProps<"/dealer/leads/[id]
   const leads = await loadLeads(supabase, membership.dealership_id, config);
   const lead = leads.find((l) => l.interest_id === id);
   if (!lead) notFound();
-  const { data: offers } = await supabase.from("offers").select("*").eq("interest_id", id).order("created_at", { ascending: false });
+  const [{ data: offers }, { data: counters }] = await Promise.all([
+    supabase.from("offers").select("*").eq("interest_id", id).order("created_at", { ascending: false }),
+    supabase.from("counteroffers").select("id, amount_otd, body, status, created_at").eq("interest_id", id).order("created_at", { ascending: false }),
+  ]);
+  const open = (counters ?? []).find((c) => c.status === "open");
   const p = lead.dossier.preferences ?? {};
   const matched = lead.status === "matched" || lead.status === "purchased";
   const canOffer = ["sent", "offered", "expired"].includes(lead.status);
@@ -99,6 +103,7 @@ export default async function LeadPage({ params }: PageProps<"/dealer/leads/[id]
               trade={(p.trade_in as TradeIn | undefined) ?? null}
               buyerName={lead.dossier.first_name ?? "the buyer"}
               title={lead.listing_title}
+              counter={open ? { id: open.id, amount_otd: Number(open.amount_otd), body: open.body, created_at: open.created_at } : null}
             />
           )}
           {(offers ?? []).length > 0 && (
@@ -112,6 +117,19 @@ export default async function LeadPage({ params }: PageProps<"/dealer/leads/[id]
                   </li>
                 ))}
               </ul>
+              {(counters ?? []).length > 0 && (
+                <>
+                  <SectionTitle className="mt-4">Counteroffers</SectionTitle>
+                  <ul className="space-y-2 text-sm">
+                    {(counters ?? []).map((c) => (
+                      <li key={c.id} className="flex items-center justify-between rounded-2xl bg-navy-850 px-4 py-3">
+                        <span><span className="font-bold">{usd(Number(c.amount_otd))}</span> · {relativeTime(c.created_at)}</span>
+                        <Pill tone={c.status === "open" ? "drive" : c.status === "accepted" ? "good" : "default"}>{c.status}</Pill>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </Card>
           )}
         </div>

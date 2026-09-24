@@ -43,6 +43,22 @@ export const env = {
   twilioAccountSid: read("TWILIO_ACCOUNT_SID"),
   twilioAuthToken: read("TWILIO_AUTH_TOKEN"),
   twilioVerifyServiceSid: read("TWILIO_VERIFY_SERVICE_SID"),
+  // Without Twilio, verification codes go to dev_outbox (Admin > Outbox).
+  // Allowed by default outside production; set PHONE_DEV_CODES=true to allow
+  // it on a preview deployment.
+  phoneDevCodes: read("PHONE_DEV_CODES") === "true" || (read("PHONE_DEV_CODES") !== "false" && process.env.NODE_ENV !== "production"),
+
+  stripeSecretKey: read("STRIPE_SECRET_KEY"),
+  stripeWebhookSecret: read("STRIPE_WEBHOOK_SECRET"),
+  stripePriceMatchedLead: read("STRIPE_PRICE_MATCHED_LEAD"),
+  stripePriceInsights: read("STRIPE_PRICE_INSIGHTS"),
+  stripePricePromotion: read("STRIPE_PRICE_PROMOTION"),
+  stripeMeterEvent: read("STRIPE_METER_EVENT") ?? "matched_lead",
+
+  // Finance and insurance partners. "demo" returns clearly labeled sample
+  // results; real adapters go in src/lib/server/partners.ts. [VERIFY partners]
+  financePartner: read("FINANCE_PARTNER") ?? "demo",
+  insurancePartner: read("INSURANCE_PARTNER") ?? "demo",
 
   cronSecret: read("CRON_SECRET"),
   adminBootstrapEmails: (read("ADMIN_BOOTSTRAP_EMAILS") ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
@@ -56,4 +72,7 @@ export const features = {
   marketcheck: Boolean(env.marketcheckApiKey) && env.inventorySources.includes("marketcheck"),
   twilio: Boolean(env.twilioAccountSid && env.twilioAuthToken && env.twilioVerifyServiceSid),
   adminClient: Boolean(env.supabaseSecretKey),
+  stripe: Boolean(env.stripeSecretKey),
+  finance: env.financePartner !== "none",
+  insurance: env.insurancePartner !== "none",
 };
