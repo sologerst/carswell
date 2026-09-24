@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx next typegen && npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+
+  database-and-e2e:
+    name: Database (pgTAP) and end-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start Supabase
+        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,storage-api
+      - name: Write .env.local from the local stack
+        run: |
+          eval "$(npx supabase status -o env | sed 's/^/export SB_/')"
+          cp .env.example .env.local
+          sed -i "s#^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=.*#NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${SB_PUBLISHABLE_KEY}#" .env.local
+          sed -i "s#^SUPABASE_SECRET_KEY=.*#SUPABASE_SECRET_KEY=${SB_SECRET_KEY}#" .env.local
+          sed -i "s#^CRON_SECRET=.*#CRON_SECRET=ci-cron-secret#" .env.local
+      - name: Database tests
+        run: npx supabase db reset && npx supabase test db
+      - name: Reseed for end-to-end tests
+        run: npx supabase db reset
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run build
+      - name: End-to-end tests (Pixel 7, iPhone 15)
+        run: |
+          npm run start &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000/login && break; sleep 1; done
+          npm run test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:3000
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

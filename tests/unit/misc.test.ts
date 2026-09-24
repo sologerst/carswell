@@ -117,3 +117,18 @@ describe("profile hash", () => {
     expect(profileHash({ a: { value: 2, tier: "must", source: "said" } })).not.toBe(a);
   });
 });
+
+describe("dealer email offer parsing (regex fallback)", () => {
+  it("reads an out-the-door total without mistaking it for the vehicle price", async () => {
+    const { parseOfferFromText } = await import("@/lib/server/offer-parse");
+    const p = parseOfferFromText("Our out the door price is $31,250 including tax, title and fees.\n\nOn Tue, CarSwipe wrote:\n> $99,999 total");
+    expect(p.otdTotal).toBe(31250);
+    expect(p.vehiclePrice).toBeNull();
+  });
+
+  it("reads itemized replies", async () => {
+    const { parseOfferFromText } = await import("@/lib/server/offer-parse");
+    const p = parseOfferFromText("Sale price $27,995, doc fee $599. Total: $30,410 OTD.");
+    expect(p).toMatchObject({ otdTotal: 30410, vehiclePrice: 27995, fees: 599 });
+  });
+});

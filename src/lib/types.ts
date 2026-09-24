@@ -140,6 +140,8 @@ export interface DeckCard {
   badges: Badge[];
   otdEstimate: number;
   monthlyEstimate: number;
+  /** True when the buyer's trade-in equity is already subtracted from the OTD estimate. */
+  afterTrade: boolean;
   exploration: boolean;
 }
 
