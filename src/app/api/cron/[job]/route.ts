@@ -27,7 +27,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/cron/[job]">) {
   if (!JOBS.includes(job as Job)) return json({ error: "unknown job" }, { status: 404 });
   const auth = req.headers.get("authorization");
   const devOpen = !env.cronSecret && process.env.NODE_ENV !== "production";
-  if (!devOpen && auth !== `Bearer ${env.cronSecret}`) return json({ error: "unauthorized" }, { status: 401 });
+  if (!devOpen && (!env.cronSecret || auth !== `Bearer ${env.cronSecret}`)) return json({ error: "unauthorized" }, { status: 401 });
   if (!features.adminClient) return json({ error: "SUPABASE_SECRET_KEY is required for jobs" }, { status: 503 });
 
   const admin = createAdminClient();
